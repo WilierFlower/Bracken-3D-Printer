@@ -8,6 +8,6 @@ M204 P5000 T8000     ; Set printing and travel accelerations
 
 M566 X900.00 Y900.00 Z500 E300 P1   ; set maximum instantaneous speed changes (mm/min)
 
-M906 X1500 Y1500 Z400 E900 I2.5   ; set motor currents (mA) and motor idle factor in percent
+M906 X500 Y800 Z500 E900 I10   ; set motor currents (mA) and motor idle factor in percent
 
 M84 S30    ; Set idle timeout

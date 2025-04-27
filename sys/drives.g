@@ -17,3 +17,6 @@ M350 X16 Y16 Z16 E16 I1  ; configure microstepping with interpolation
 
 M92 X200.00 Y200.00 Z800.00 E690 ; set steps per mm
 
+M569 P0 Y4:3:0 B2 C3  ;Adjusted X axis SpreadCycle Chopper
+
+M569 P1 Y4:3:0 B2 C3  ;Adjusted Y axis SpreadCycle Chopper
