@@ -1,0 +1,55 @@
+; === autoStall_X.g =====================================================
+; Auto-tune StallGuard threshold for the X axis (Duet 2 WiFi, TMC2660)
+
+; ------------ USER SETTINGS -------------------------------------------
+var testDistance    = 20     ; mm toward X-min each pass
+var retractDistance = 5      ; mm away before every test
+var feedrate        = 6000   ; mm/min  (100 mm s-¹)
+var Smin            = 0      ; scan S from here …
+var Smax            = 8      ; … to here
+var holdCurrentPct  = 80     ; % of normal current during test
+; ----------------------------------------------------------------------
+
+M291 P"Auto-tuning StallGuard on X.\n\nMake sure the carriage is mid-travel and nothing is in its way." R"StallGuard tuner" S3
+
+; remember and reduce motor current
+var origCurrent = move.axes[0].current        ; X = axis 0
+M906 X{var.origCurrent * var.holdCurrentPct / 100}
+
+var bestS   = -1
+
+; -------- scan S = Smin … Smax ----------------------------------------
+for S = {var.Smin}:{var.Smax}
+
+  M915 X S{S} H400 R0 F0                 ; candidate sensitivity
+  echo "Testing S=", S
+
+  G91                                    ; relative moves
+  G1  H2 X{var.retractDistance} F2400
+  G1  H1 X{-var.testDistance} F{var.feedrate}
+  M400
+
+  if move.axes[0].homed
+    set var.bestS = S
+    break
+  else
+    ; fake original position so next pass starts in same place
+    M564 S0
+    G92 X{move.axes[0].userPosition + var.testDistance}
+    M564 S1
+  G90
+
+; ------------- clean-up ------------------------------------------------
+M906 X{var.origCurrent}                  ; restore current
+
+if var.bestS >= 0
+  M291 P{"Best S = " ^ var.bestS ^
+         "\nAdd to config.g:\n  M915 X S" ^ var.bestS ^ " H400 R0 F0"} \
+       R"Tuning done" S1
+  echo ">>> Recommended:"
+  echo "M915 X S", var.bestS, " H400 R0 F0"
+else
+  M291 P{"No reliable S found in range " ^ var.Smin ^ "-" ^ var.Smax} \
+       R"Tuning failed" S2
+  echo "No suitable S found."
+; ======================================================================

@@ -1,0 +1,52 @@
+; manual_z_offset_calibration.g
+; --------------------------------------------------------------------------
+; This macro guides the user to manually adjust the Z offset.
+; 1) Heats the bed (optional)
+; 2) User manually adjusts Z height using a piece of paper
+; 3) Probes the bed to calculate the Z offset
+; 4) Displays the measured offset for manual update of z_probe.g
+; --------------------------------------------------------------------------
+
+; ============= 0) Confirm Start =============
+M291 R"Manual Z Offset Calibration" P"This will measure a new Z offset. You will need to manually update z_probe.g. Press OK to continue." S3 T30
+; S3 => "OK" or "Cancel", with a 30-second timeout.
+
+; ============= 1) Heat Bed (Optional) =============
+M291 R"Heating Bed" P"Heating the bed to 60°C. Please wait..." S1 T10
+; S1 => Non-blocking message. Macro continues immediately.
+
+M190 S60
+; M190 waits until the bed reaches the target temperature.
+
+M291 R"Heating Bed" P"The bed is now at 60°C. Press OK to continue." S2 T0
+; S2 => Blocking message. User must confirm to proceed.
+
+; ============= 2) Home and Prepare =============
+G28                          ; Home all axes
+G90                          ; Set to absolute positioning
+M561                         ; Clear any bed transformations (like mesh leveling)
+M400                         ; Wait for all moves to finish
+
+; Move the nozzle to the center of the bed at a safe height
+G1 X110 Y110 Z1 F6000        ; Move to bed center
+
+M564 S0                      ; Allow manual moves outside limits
+M291 R"Manual Z Adjustment" P"Adjust the Z axis using jog controls until piece of paper just drags under the nozzle. Press OK to continue." S3 Z1
+; S3 => Blocking message. User adjusts Z manually using jog controls.
+
+G92 Z0                       ; Set the current position as Z=0
+G1 X110 Y110 Z10 F6000       ; Lift nozzle after manual adjustment for safety
+M564 S1                      ; Don't allow manual moves outside limits
+; ============= 3) Z-Probe Offset Calibration =============
+M291 R"Z-Probe" P"Probing the bed to calculate the Z offset. Press OK to start." S2 T0
+
+; Configure Z probe settings for the Turck PNP sensor
+M558 P5 C"^zprobe.in" F400 H0.8 R0 A3 S0.03 T15000
+M574 Z1 S2                  ; Set Z-min to use the probe
+
+; Probe at the current location to calculate the offset
+G30 S-1                     ; Measure and set the Z probe trigger height
+
+; ============= 4) Wrap Up =============
+M291 R"Done" P"Z Offset Calibration complete. Remember to update z_probe.g with the displayed value!" S2 T0
+; Final confirmation message to the user.
