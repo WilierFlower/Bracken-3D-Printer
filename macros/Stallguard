@@ -1,55 +1,66 @@
-; === autoStall_X.g =====================================================
-; Auto-tune StallGuard threshold for the X axis (Duet 2 WiFi, TMC2660)
+; ===== tuneStall_X.g – sensorless homing calibration =====
+; Press X carriage against X-min hard stop before starting!
 
-; ------------ USER SETTINGS -------------------------------------------
-var testDistance    = 20     ; mm toward X-min each pass
-var retractDistance = 5      ; mm away before every test
-var feedrate        = 6000   ; mm/min  (100 mm s-¹)
-var Smin            = 0      ; scan S from here …
-var Smax            = 8      ; … to here
-var holdCurrentPct  = 80     ; % of normal current during test
-; ----------------------------------------------------------------------
+; user parameters
+var testDist = 120      ; mm to push into stop
+var retract  = 100       ; mm out before each test
+var feed     = 6000    ; mm/min test speed
+var Smin     = 1
+var Smax     = 8
+var runPct   = 30      ; % of normal hold current
 
-M291 P"Auto-tuning StallGuard on X.\n\nMake sure the carriage is mid-travel and nothing is in its way." R"StallGuard tuner" S3
+M291 S3 R"Sensorless Tune – X" P"Make sure carriage is at X-min then click OK."
 
-; remember and reduce motor current
-var origCurrent = move.axes[0].current        ; X = axis 0
-M906 X{var.origCurrent * var.holdCurrentPct / 100}
+; save & reduce current
+var orig = move.axes[0].current
+M906 X{var.orig * var.runPct / 100}
 
-var bestS   = -1
+var best = -1
+var S    = var.Smin
 
-; -------- scan S = Smin … Smax ----------------------------------------
-for S = {var.Smin}:{var.Smax}
+while var.S <= var.Smax
+  ; set this trial’s threshold
+  M915 X S{var.S} H400 R0 F0
 
-  M915 X S{S} H400 R0 F0                 ; candidate sensitivity
-  echo "Testing S=", S
-
-  G91                                    ; relative moves
-  G1  H2 X{var.retractDistance} F2400
-  G1  H1 X{-var.testDistance} F{var.feedrate}
+  ; retract off the stop
+  G91
+  G1 X{var.retract} F2400
   M400
 
-  if move.axes[0].homed
-    set var.bestS = S
-    break
-  else
-    ; fake original position so next pass starts in same place
-    M564 S0
-    G92 X{move.axes[0].userPosition + var.testDistance}
-    M564 S1
+  ; disable software limits so we can bump into the mechanical endstop
+  M564 S0
   G90
 
-; ------------- clean-up ------------------------------------------------
-M906 X{var.origCurrent}                  ; restore current
+  ; drive back into the stop
+  G1 H1 X{-var.testDist} F{var.feed}
+  M400
 
-if var.bestS >= 0
-  M291 P{"Best S = " ^ var.bestS ^
-         "\nAdd to config.g:\n  M915 X S" ^ var.bestS ^ " H400 R0 F0"} \
-       R"Tuning done" S1
-  echo ">>> Recommended:"
-  echo "M915 X S", var.bestS, " H400 R0 F0"
+  ; re-enable software limits
+  M564 S1
+
+  ; if StallGuard flagged a “homed” event, we’ve found our S
+  if move.axes[0].homed
+    set var.best = var.S
+    break
+
+  ; otherwise reposition for next pass
+  G90
+  G1 X{var.retract + var.testDist} F6000
+
+  ; try next threshold
+  set var.S = var.S + 1
+
+; — end of while (no “endwhile”)
+
+; restore original current and absolute mode
+G90
+M906 X{var.orig}
+
+; report outcome
+if var.best >= 0
+  M291 S1 R"Done" P{"Best threshold = " ^ var.best}
+  echo ">>>  Use: M915 X S", var.best, " H400 R0 F0"
 else
-  M291 P{"No reliable S found in range " ^ var.Smin ^ "-" ^ var.Smax} \
-       R"Tuning failed" S2
-  echo "No suitable S found."
-; ======================================================================
+  M291 S2 R"Failed" P{"No threshold found (" ^ var.Smin ^ "-" ^ var.Smax ^ ")"}
+
+; — end of macro
