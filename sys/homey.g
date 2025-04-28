@@ -7,8 +7,9 @@ G91
 M400
 
 ; --- Set sensorless homing parameters ---
-M913 Y30         ; Reduce motor current for a gentle stall
-M915 Y S3 H400 R0 F0   ; Set sensitivity (S3) and stall threshold (H400)
+;M913 Y35         ; Reduce motor current for a gentle stall
+;M915 Y S3 H400 R0 F0   ; Set sensitivity (S3) and stall threshold (H400)
+M915 Y S-1 H400 R0 F0   ; Set sensitivity (S3) and stall threshold (H400)
 M574 Y1 S3       ; Configure sensorless endstop for the low (negative) end
 M201.1 Y100      ; Reduce acceleration to avoid false triggers
 
